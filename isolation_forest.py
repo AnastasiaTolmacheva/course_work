@@ -34,7 +34,7 @@ plt.ylabel('Username length')
 plt.title('Поиск аномалий методом изолированного леса')
 plt.colorbar()
 
-# Сохранение графика в файл (по желанию)
+# Сохранение графика в файл
 plt.savefig('anomaly_detection.png')
 
 # Отображение графика
