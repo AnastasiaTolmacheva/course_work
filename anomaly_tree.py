@@ -1,12 +1,9 @@
 import sqlite3
 import pandas as pd
-from sklearn.cluster import AgglomerativeClustering
-from scipy.cluster.hierarchy import dendrogram
+from scipy.cluster.hierarchy import linkage, dendrogram
 import matplotlib.pyplot as plt
-import numpy as np
-from scipy.cluster.hierarchy import linkage
-from sklearn.metrics import pairwise_distances
-from scipy.spatial.distance import squareform
+from sklearn.impute import SimpleImputer
+
 
 # Создание и соединение с базой данных
 connection = sqlite3.connect('accounts_db.db')
@@ -14,47 +11,46 @@ connection = sqlite3.connect('accounts_db.db')
 # Чтение данных из таблицы features
 query = """
 SELECT user_id,
-       CAST(username_length AS DOUBLE) AS username_length,
-       CAST(numbers_in_name AS DOUBLE) AS numbers_in_name,
-       CAST(email_length AS DOUBLE) AS email_length,
-       CAST(matching_names AS DOUBLE) AS matching_names,
-       CAST(pattern_email AS DOUBLE) AS pattern_email,
-       CAST(country AS DOUBLE) AS country,
-       CAST(date_last_email AS DOUBLE) AS date_last_email,
-       CAST(matching_dates AS DOUBLE) AS matching_dates
-FROM features
-LIMIT 50;
+       username_length,
+       numbers_in_name,
+       email_length,
+       matching_names,
+       pattern_email,
+       country,
+       date_last_email,
+       date_registered, 
+       date_last_login,
+       matching_dates,
+       username_neighbour_above,
+       username_neighbour_below,
+       email_neighbour_above,
+       email_neighbour_below
+FROM features;
 """
 
 data = pd.read_sql_query(query, connection)
 
+# Используем user_id как индекс
+data.set_index('user_id', inplace=True)
+
+# Заполнение отсутствующих значений в данных
+imputer = SimpleImputer(strategy='mean')  # Берем среднее значение по столбцу
+data.fillna(data.mean(), inplace=True)
+
 # Закрываем соединение с базой данных
 connection.close()
 
-# Выбор количества кластеров
-n_clusters = 2
-
-# Иерархическая кластеризация
-model = AgglomerativeClustering(n_clusters=n_clusters)
-clusters = model.fit_predict(data)
-
-# Построение дендрограммы
-to_double = model.children_.astype(np.float64)
-
 # Вычисление матрицы расстояний
-distances = pairwise_distances(data)
-# Преобразование полной матрицы расстояний в сжатую форму
-condensed_distances = squareform(distances)
-
-Z = linkage(condensed_distances, method='ward')
+Z = linkage(data, method='complete', metric='euclidean')
 
 # Создание графика дендрограммы
 plt.figure(figsize=(15, 9))
-plt.title("Дендрограмма иерархической кластеризации")
+plt.title("Дендрограмма иерархической кластеризации с методом complete linkage")
 dendrogram(Z,
            orientation='top',
            distance_sort='descending',
-           show_leaf_counts=True)
+           show_leaf_counts=True,
+           labels=data.index)  # Подписываем листья как user_id
 
-plt.savefig('anomaly_dendrogramm.png')
+plt.savefig('anomaly_dendrogramm_complete_ALL.png')
 plt.show()
