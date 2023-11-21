@@ -1,11 +1,11 @@
 import sqlite3
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+
 
 # Создание и соединение с базой данных
 connection = sqlite3.connect('accounts_db.db')
@@ -13,8 +13,6 @@ connection = sqlite3.connect('accounts_db.db')
 # Чтение данных из таблицы features
 query = """
 SELECT user_id,
-       username,
-       email,
        username_length,
        numbers_in_name,
        email_length,
@@ -37,39 +35,23 @@ data = pd.read_sql_query(query, connection)
 # Используем user_id как индекс
 data.set_index('user_id', inplace=True)
 
-# Заменяем пропущенные значения в столбце email
-data['email'] = data['email'].replace({None: ''})
+# Заполнение отсутствующих значений в данных
+imputer = SimpleImputer(strategy='mean')  # Берем среднее значение по столбцу
+data_imputed = imputer.fit_transform(data)
 
-# Векторизация текстовых данных (username и email)
-vectorizer = CountVectorizer()
-username_vectorized = vectorizer.fit_transform(data['username'])
-email_vectorized = vectorizer.transform(data['email'])
-
-# Конвертация в DataFrame и добавление к основному DataFrame
-username_df = pd.DataFrame(username_vectorized.toarray(), columns=[f'username_{col}' for col in vectorizer.get_feature_names_out()])
-email_df = pd.DataFrame(email_vectorized.toarray(), columns=[f'email_{col}' for col in vectorizer.get_feature_names_out()])
-
-data = pd.concat([data, username_df, email_df], axis=1)
-
-# Выбираем все числовые признаки для кластеризации
-features_for_clustering = [
-    'username_length', 'numbers_in_name', 'email_length', 'matching_names', 'pattern_email',
-    'country', 'date_last_email', 'date_registered', 'date_last_login', 'matching_dates',
-    'username_neighbour_above', 'username_neighbour_below', 'email_neighbour_above', 'email_neighbour_below']
-
-# Нормализация числовых признаков
-scaler = StandardScaler()
-data_normalized = scaler.fit_transform(data[features_for_clustering])
-
-# Замена null на среднее значение в каждом столбце
-data_normalized = np.nan_to_num(data_normalized)
+# Нормализация числовых и векторизованных признаков
+scaler = MinMaxScaler()
+data_normalized = scaler.fit_transform(data_imputed)
 
 # Применение DBSCAN
-dbscan = DBSCAN(eps=0.5, min_samples=5)
+dbscan = DBSCAN(eps=1, min_samples=6)
 data['cluster'] = dbscan.fit_predict(data_normalized)
 
-# Закрываем соединение с базой данных
-connection.close()
+# Вывод информации о фейковых аккаунтах
+fake_accounts = data[data['cluster'] == -1]
+
+# Сохранение данных в CSV файл
+fake_accounts.to_csv('fake_accounts_dbscan.csv', index=True)
 
 # Создание изображения
 plt.figure(figsize=(12, 8))
@@ -81,3 +63,6 @@ plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
 
 plt.savefig('dbscan_clustering_ALL.png')
 plt.show()
+
+# Закрываем соединение с базой данных
+connection.close()
