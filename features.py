@@ -2,7 +2,6 @@ import sqlite3
 import pandas as pd
 import re
 import Levenshtein
-from sklearn.preprocessing import MinMaxScaler
 
 pattern = r'^\S+@\S+\.\S+$'  # Паттерн для email "user@domain.com"
 threshold = 6  # Порог сходства (расстояние Левенштейна)
@@ -27,8 +26,8 @@ data['matching_names'] = data.apply(lambda row: int(Levenshtein.distance(row['us
 data['pattern_email'] = data['email'].apply(lambda email: int(bool(re.match(pattern, email))) if email else 0)
 data['country'] = data['country'].notnull().astype(int)
 data['date_last_email'] = data['date_last_email'].notnull().astype(int)
-data['date_registered'] = pd.to_datetime(data['date_registered']).astype('int64') / 10**9
-data['date_last_login'] = pd.to_datetime(data['date_last_login']).astype('int64') / 10**9
+data['date_registered'] = pd.to_datetime(data['date_registered']).astype('int64')
+data['date_last_login'] = pd.to_datetime(data['date_last_login']).astype('int64')
 data['matching_dates'] = (pd.to_datetime(data['date_last_login']).dt.round('S') == pd.to_datetime(data['date_registered']).dt.round('S'))
 data['matching_dates'] = data['matching_dates'].astype(int)
 
@@ -70,19 +69,8 @@ def find_neighbours(column_name, radius):
 neighbour_radius = len(data) // 3
 
 # Добавление столбцов для соседей с похожим username и email
-(data['username_neighbour_above'],data['username_neighbour_below']) = find_neighbours('username', neighbour_radius)
+(data['username_neighbour_above'], data['username_neighbour_below']) = find_neighbours('username', neighbour_radius)
 (data['email_neighbour_above'], data['email_neighbour_below']) = find_neighbours('email', neighbour_radius)
-
-# Признаки, которые необходимо нормализовать
-features_to_normalize = ['username_length', 'email_length', 'date_last_email', 'date_registered', 'date_last_login',
-                         'username_neighbour_above', 'username_neighbour_below', 'email_neighbour_above',
-                         'email_neighbour_below']
-
-# Создайте экземпляр MinMaxScaler
-scaler = MinMaxScaler()
-
-# Нормализуйте выбранные признаки
-data[features_to_normalize] = scaler.fit_transform(data[features_to_normalize])
 
 # Создание таблицы features
 create_features_table_query = """
